@@ -1,0 +1,75 @@
+- name: Wordpress Installation
+  become: yes
+  hosts: all
+
+  vars:
+   wordpress_url: "https://wordpress.org/latest.tar.gz"
+
+  tasks:
+    - name: Install packages
+      apt:
+        name:
+          - nginx
+          - php8.3
+          - mariadb-server
+          - php8.3-cli
+          - php8.3-fpm
+          - php8.3-mysql
+          - php8.3-opcache
+          - php8.3-mbstring
+          - php8.3-gd
+          - php8.3-curl
+          - php8.3-xml
+
+    - name: Create var folder
+      file:
+        path: /var/www/html/wordpress/public_html
+        state: directory
+        mode: '0755'
+
+    - name: Downloading wordpress.tar
+      get_url:
+        url: "{{ wordpress_url }}"
+        dest: /home/kale/wordpress.tar.gz
+
+    - name: Archive wordpress
+      unarchive:
+        src: /home/kale/wordpress.tar.gz
+        dest: /var/www/html
+        remote_src: yes
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Mariadb
+      shell: mysql -u root -e "CREATE DATABASE wordpress_db;"
+      shell: mysql -u root -e "GRANT ALL ON wordpress_db.* TO 'wpuser'@'localhost' IDENTIFIED BY 'Passw0rd!' WITH GRANT OPTION;"
+      shell: mysql -u root -e "FLUSH PRIVILEGES;"
+
+    - name: Config changes
+      template:
+        src: wp-config-sample.php
+        dest: /var/www/html/wordpress/
+
+    - name: Wordpress conf
+      template:
+        src: wordpress.conf
+        dest: /etc/nginx/sites-available/wordpress.conf
+
+
+    - name: Link
+      file:
+        src: /etc/nginx/sites-available/wordpress.conf
+        dest: /etc/nginx/sites-enabled/wordpress.conf
+        state: link
+
+    - name: Deleting default
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
